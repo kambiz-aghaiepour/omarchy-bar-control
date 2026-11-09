@@ -492,6 +492,20 @@ Panel {
     readonly property real padX: (width - padSide) / 2
     readonly property real padY: (height - padSide) / 2
 
+    function updateHue(x, y) {
+      var dx = x - width / 2
+      var dy = y - height / 2
+      var d = Math.sqrt(dx * dx + dy * dy)
+      if (d < innerR - 2 || d > outerR + 2) return
+      var a = Math.atan2(dy, dx) * 180 / Math.PI
+      hue = ((a % 360) + 360) % 360 / 360
+    }
+
+    function updateSV(x, y) {
+      saturation = Math.max(0, Math.min(1, x / padSide))
+      value = 1 - Math.max(0, Math.min(1, y / padSide))
+    }
+
     Canvas {
       id: ringCanvas
       anchors.fill: parent
@@ -518,18 +532,10 @@ Panel {
 
     // Ring drag: angle picks the hue.
     MouseArea {
+      id: ringArea
       anchors.fill: parent
       onPressed: function(m) { wheel.updateHue(m.x, m.y) }
-      onPositionChanged: function(m) { wheel.updateHue(m.x, m.y) }
-
-      function updateHue(x, y) {
-        var dx = x - wheel.width / 2
-        var dy = y - wheel.height / 2
-        var d = Math.sqrt(dx * dx + dy * dy)
-        if (d < wheel.innerR - 2 || d > wheel.outerR + 2) return
-        var a = Math.atan2(dy, dx) * 180 / Math.PI
-        wheel.hue = ((a % 360) + 360) % 360 / 360
-      }
+      onPositionChanged: function(m) { if (ringArea.pressed) wheel.updateHue(m.x, m.y) }
     }
 
     Rectangle {
@@ -577,14 +583,10 @@ Panel {
       }
 
       MouseArea {
+        id: svArea
         anchors.fill: parent
         onPressed: function(m) { wheel.updateSV(m.x, m.y) }
-        onPositionChanged: function(m) { wheel.updateSV(m.x, m.y) }
-
-        function updateSV(x, y) {
-          wheel.saturation = Math.max(0, Math.min(1, x / wheel.padSide))
-          wheel.value = 1 - Math.max(0, Math.min(1, y / wheel.padSide))
-        }
+        onPositionChanged: function(m) { if (svArea.pressed) wheel.updateSV(m.x, m.y) }
       }
     }
   }
