@@ -25,8 +25,13 @@ BarWidget {
   }
 
   // Run a barctl script; every stdout line hits onLine, completion onDone.
+  // A call while busy is queued (one deep), never dropped.
+  property var queuedRun: null
   function run(exe, args, onLine, onDone) {
-    if (root.busy) return
+    if (root.busy) {
+      queuedRun = [exe, args, onLine, onDone]
+      return
+    }
     runnerCmd = ["bash", "-c", 'exec "$@"', "bash", exe].concat(args || [])
     runnerOnLine = onLine
     runnerOnDone = onDone
@@ -53,10 +58,23 @@ BarWidget {
       root.runnerOnLine = null
       root.runnerOnDone = null
       if (cb) cb(exitCode, root.runnerOut)
+      if (root.queuedRun) {
+        var q = root.queuedRun
+        root.queuedRun = null
+        root.run(q[0], q[1], q[2], q[3])
+      }
     }
   }
 
   function pluginAction(action, which, done) {
+    // Optimistic: flip the label now; the refresh confirms.
+    var post = action === "enable" || action === "install" ? "enabled"
+      : action === "disable" ? "disabled" : "absent"
+    var panel = panelLoader.item
+    if (panel) {
+      if (which === "glassy") panel.glassyState = post
+      else if (which === "autohide") panel.autohideState = post
+    }
     root.actionNote = "…"
     run(script("barctl-plugins"), [action, which || ""], null, function(code, out) {
       root.actionNote = code === 0 ? "ok" : "failed (" + action + ")"

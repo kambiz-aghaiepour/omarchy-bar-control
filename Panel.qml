@@ -91,6 +91,10 @@ Panel {
   }
 
   function setGlassy(key, value) {
+    var n = {}
+    for (var k in g) n[k] = g[k]
+    n[key] = String(value)
+    g = n
     hostWidget.run(hostWidget.script("barctl-glassy"), ["set", key, String(value)], null, function(code, out) {
       if (code !== 0) { hostWidget.actionNote = "glassy set failed: " + key; return }
       hostWidget.actionNote = "glassy " + key + " = " + value + "  (applied live)"
@@ -343,25 +347,25 @@ Panel {
               }
               color: root.dim; font.pixelSize: Style.font.caption; font.family: Style.font.family
             }
+            Toggle {
+              width: parent.width
+              label: "Enabled"
+              description: "Off = unloaded (settings kept); the stock bar returns while Glassy is off"
+              visible: root.glassyState !== "absent"
+              checked: root.glassyState === "enabled" || root.glassyState === "active"
+              onClicked: {
+                var enabling = !(root.glassyState === "enabled" || root.glassyState === "active")
+                hostWidget.pluginAction(enabling ? "enable" : "disable", "glassy")
+              }
+            }
+
             Row {
               spacing: Style.space(6)
-              Act {
-                label: root.glassyState === "disabled" || root.glassyState === "absent" ? "Enable" : "Disable"
-                visible: root.glassyState !== "absent"
-                action: function() {
-                  hostWidget.pluginAction(root.glassyState === "disabled" ? "enable" : "disable", "glassy")
-                }
-              }
               Act {
                 label: "Remove"
                 visible: root.glassyState !== "absent"
                 danger: true
-                action: function() { hostWidget.pluginAction("remove", "glassy") }
-              }
-              Act {
-                label: "Install"
-                visible: root.glassyState === "absent"
-                action: function() { hostWidget.pluginAction("install", "glassy") }
+                action: function() { root.hostWidget.pluginAction("remove", "glassy") }
               }
             }
           }
@@ -376,15 +380,20 @@ Panel {
               StateDot { state: root.autohideState; anchors.verticalCenter: parent.verticalCenter }
               Text { text: "Bar Autohide (ericvrp.bar-autohide)"; color: root.fg; font.pixelSize: Style.font.body; font.family: Style.font.family }
             }
+            Toggle {
+              width: parent.width
+              label: "Enabled"
+              description: "Off = unloaded (settings kept)"
+              visible: root.autohideState !== "absent"
+              checked: root.autohideState === "enabled" || root.autohideState === "active"
+              onClicked: {
+                var enabling = !(root.autohideState === "enabled" || root.autohideState === "active")
+                hostWidget.pluginAction(enabling ? "enable" : "disable", "autohide")
+              }
+            }
+
             Row {
               spacing: Style.space(6)
-              Act {
-                label: root.autohideState === "disabled" ? "Enable" : "Disable"
-                visible: root.autohideState !== "absent"
-                action: function() {
-                  hostWidget.pluginAction(root.autohideState === "disabled" ? "enable" : "disable", "autohide")
-                }
-              }
               Act {
                 label: "Remove"
                 visible: root.autohideState !== "absent"
@@ -658,7 +667,8 @@ Panel {
               label: root.autohideState === "disabled" ? "Enable" : "Disable"
               visible: root.autohideState !== "absent"
               action: function() {
-                hostWidget.pluginAction(root.autohideState === "disabled" ? "enable" : "disable", "autohide")
+                var enabling = root.autohideState === "disabled"
+                hostWidget.pluginAction(enabling ? "enable" : "disable", "autohide")
               }
             }
           }
