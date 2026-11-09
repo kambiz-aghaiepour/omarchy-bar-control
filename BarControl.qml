@@ -44,6 +44,13 @@ BarWidget {
   property var runnerOnDone: null
   property string runnerOut: ""
 
+  function flushQueued() {
+    if (!root.queuedRun || root.busy) return
+    var q = root.queuedRun
+    root.queuedRun = null
+    root.run(q[0], q[1], q[2], q[3])
+  }
+
   Process {
     id: runner
     command: root.runnerCmd
@@ -58,11 +65,8 @@ BarWidget {
       root.runnerOnLine = null
       root.runnerOnDone = null
       if (cb) cb(exitCode, root.runnerOut)
-      if (root.queuedRun) {
-        var q = root.queuedRun
-        root.queuedRun = null
-        root.run(q[0], q[1], q[2], q[3])
-      }
+      // running is still true inside onExited; flush the queue next event loop pass
+      if (root.queuedRun) Qt.callLater(root.flushQueued)
     }
   }
 
@@ -141,6 +145,9 @@ BarWidget {
     function close(): void { root.closePanel() }
     function toggle(): void { root.togglePanel() }
     function refresh(): void { root.panelRefresh() }
+    function tab(name: string): void {
+      if (panelLoader.item && "tab" in panelLoader.item) panelLoader.item.tab = name
+    }
     function status(): string { return root.statusLine }
   }
 }

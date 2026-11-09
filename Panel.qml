@@ -49,6 +49,20 @@ Panel {
   property string tab: "plugins"
   readonly property var tabNames: [["plugins", "Plugins"], ["glassy", "Glassy"], ["autohide", "Autohide"], ["layout", "Layout"]]
 
+  // Palette for the glassy color rows; lastCustom remembers the last picked
+  // hex per key so unchecking "theme default" restores it.
+  readonly property var palette: [
+    "#1e1e2e", "#181825", "#11111b", "#313244", "#585b70",
+    "#cdd6f4", "#bac2de", "#a6adc8", "#f5e0dc", "#f9e2af",
+    "#a6e3a1", "#94e2d5", "#89dceb", "#74c7ec", "#89b4fa",
+    "#b4befe", "#f38ba8", "#eba0ac", "#fab387", "#ffd580"
+  ]
+  property var lastCustom: ({})
+  // Loader refs for the revision-recreate; ids are not reliably visible
+  // from root-scope signal handlers, so the panes register themselves.
+  property var glassyPaneRef: null
+  property var autohidePaneRef: null
+
   function refresh() {
     hostWidget.run(hostWidget.script("barctl-plugins"), ["status"], null, function(code, out) {
       var m = {}
@@ -70,8 +84,8 @@ Panel {
         hostWidget.run(hostWidget.script("barctl-autohide"), ["get"], null, function(code3, out3) {
           var v = parseInt(out3.trim(), 10)
           autohideMs = v >= 0 && v <= 5000 ? v : 200
-          loadLayout(null)
-          revision++
+          loadLayout(function() { revision++ })
+          hostWidget.statusLine = "ok"
         })
       })
     })
@@ -260,6 +274,109 @@ Panel {
     }
   }
 
+  component MiniCheck: Rectangle {
+    id: checkRoot
+    property bool on: false
+    width: 13; height: 13; radius: 3
+    color: on ? root.accent : "transparent"
+    border.width: 1; border.color: root.accent
+    Text {
+      visible: checkRoot.on
+      anchors.centerIn: parent
+      text: "✓"; color: "#11111b"; font.pixelSize: 9; font.bold: true
+      font.family: Style.font.family
+    }
+    MouseArea {
+      anchors.fill: parent
+      cursorShape: Qt.PointingHandCursor
+      onClicked: if (checkRoot.action) checkRoot.action()
+    }
+    property var action: null
+  }
+
+  // One color setting: current swatch + hex, theme-default check, palette.
+  component ColorRow: Column {
+    id: crow
+    property string ckey: ""
+    property string clabel: ""
+    width: parent ? parent.width : 0
+    spacing: Style.space(4)
+
+    readonly property string cur: root.gv(ckey, "")
+
+    Row {
+      spacing: Style.space(6)
+      Text {
+        width: 140
+        text: crow.clabel
+        anchors.verticalCenter: parent.verticalCenter
+        color: root.fg
+        elide: Text.ElideRight
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
+      }
+      Rectangle {
+        width: 14; height: 14; radius: 3
+        anchors.verticalCenter: parent.verticalCenter
+        color: crow.cur === "" ? "transparent" : crow.cur
+        border.width: 1; border.color: root.fg
+      }
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        width: 86; elide: Text.ElideRight
+        text: crow.cur
+        color: root.dim; font.pixelSize: 10; font.family: Style.font.family
+      }
+      MiniCheck {
+        anchors.verticalCenter: parent.verticalCenter
+        on: crow.cur === ""
+        action: function() {
+          if (crow.cur !== "") {
+            var n = {}
+            for (var k in root.lastCustom) n[k] = root.lastCustom[k]
+            n[crow.ckey] = crow.cur
+            root.lastCustom = n
+            root.setGlassy(crow.ckey, "")
+          } else {
+            var lc = root.lastCustom[crow.ckey]
+            if (lc) root.setGlassy(crow.ckey, lc)
+          }
+        }
+      }
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: "theme default"
+        color: root.dim; font.pixelSize: 10; font.family: Style.font.family
+      }
+    }
+
+    Flow {
+      width: parent.width
+      spacing: 4
+      Repeater {
+        model: root.palette
+        Rectangle {
+          width: 16; height: 16; radius: 3
+          color: modelData
+          border.width: modelData === crow.cur ? 2 : 1
+          border.color: modelData === crow.cur ? root.accent : Qt.rgba(1, 1, 1, 0.25)
+          MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+              var n = {}
+              for (var k in root.lastCustom) n[k] = root.lastCustom[k]
+              n[crow.ckey] = modelData
+              root.lastCustom = n
+              root.setGlassy(crow.ckey, modelData)
+            }
+          }
+        }
+      }
+    }
+  }
+
   component StateDot: Rectangle {
     property string state: ""
     width: 8; height: 8; radius: 4
@@ -425,6 +542,19 @@ Panel {
           visible: root.tab === "glassy"
           spacing: Style.space(6)
 
+            Loader {
+              id: glassyPane
+              width: parent.width
+              Component.onCompleted: root.glassyPaneRef = glassyPane
+              sourceComponent: root.revision > 0 ? glassyPaneComp : undefined
+            }
+        }
+
+        Component {
+          id: glassyPaneComp
+          Column {
+            width: glassyPane.width
+            spacing: Style.space(6)
           Header { label: "Geometry" }
 
           FieldRow {
@@ -465,6 +595,7 @@ Panel {
           FieldRow {
             label: "Margin edge / sides"
             NumberField {
+              id: marginEdgeF
               anchors.verticalCenter: parent.verticalCenter
               width: 70
               from: 0; to: 100; stepSize: 1
@@ -472,6 +603,7 @@ Panel {
               onModified: function(v) { root.setGlassy("margin_edge", v) }
             }
             NumberField {
+              id: marginSidesF
               anchors.verticalCenter: parent.verticalCenter
               width: 70
               from: 0; to: 100; stepSize: 1
@@ -483,6 +615,7 @@ Panel {
           FieldRow {
             label: "Padding"
             NumberField {
+              id: paddingF
               anchors.verticalCenter: parent.verticalCenter
               width: 70
               from: 0; to: 64; stepSize: 1
@@ -519,6 +652,7 @@ Panel {
           FieldRow {
             label: "Background opacity (%)"
             NumberField {
+              id: opacityF
               anchors.verticalCenter: parent.verticalCenter
               width: 70
               from: 0; to: 100; stepSize: 5
@@ -527,51 +661,9 @@ Panel {
             }
           }
 
-          FieldRow {
-            label: "Background color"
-            TextField {
-              id: bgField
-              anchors.verticalCenter: parent.verticalCenter
-              width: 90
-              color: root.fg
-              font.family: Style.font.family
-              font.pixelSize: Style.font.caption
-              text: root.gv("background", "")
-              onVisibleChanged: if (visible) text = root.gv("background", "")
-              onAccepted: root.setGlassy("background", text.trim())
-            }
-            Rectangle {
-              anchors.verticalCenter: parent.verticalCenter
-              width: 14; height: 14; radius: 3
-              color: root.gv("background", "") === "" ? "transparent" : root.gv("background", "")
-              border.width: 1; border.color: root.dim
-            }
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              text: '"" = theme'
-              color: root.dim; font.pixelSize: 10; font.family: Style.font.family
-            }
-          }
+          ColorRow { ckey: "background"; clabel: "Background color" }
 
-          FieldRow {
-            label: "Foreground (text/icons)"
-            TextField {
-              id: fgField
-              anchors.verticalCenter: parent.verticalCenter
-              width: 90
-              color: root.fg
-              font.family: Style.font.family
-              font.pixelSize: Style.font.caption
-              text: root.gv("foreground", "")
-              onVisibleChanged: if (visible) text = root.gv("foreground", "")
-              onAccepted: root.setGlassy("foreground", text.trim())
-            }
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              text: '"" = theme'
-              color: root.dim; font.pixelSize: 10; font.family: Style.font.family
-            }
-          }
+          ColorRow { ckey: "foreground"; clabel: "Foreground (text/icons)" }
 
           Header { label: "Effects" }
 
@@ -591,6 +683,7 @@ Panel {
           FieldRow {
             label: "Border width / opacity"
             NumberField {
+              id: borderWF
               anchors.verticalCenter: parent.verticalCenter
               width: 60
               from: 0; to: 8; stepSize: 1
@@ -598,6 +691,7 @@ Panel {
               onModified: function(v) { root.setGlassy("border_width", v) }
             }
             NumberField {
+              id: borderOF
               anchors.verticalCenter: parent.verticalCenter
               width: 70
               from: 0; to: 100; stepSize: 5
@@ -609,6 +703,7 @@ Panel {
           FieldRow {
             label: "Shadow depth / opacity / tint"
             NumberField {
+              id: shadowDF
               anchors.verticalCenter: parent.verticalCenter
               width: 55
               from: 0; to: 64; stepSize: 1
@@ -616,6 +711,7 @@ Panel {
               onModified: function(v) { root.setGlassy("shadow_depth", v) }
             }
             NumberField {
+              id: shadowOF
               anchors.verticalCenter: parent.verticalCenter
               width: 60
               from: 0; to: 100; stepSize: 5
@@ -623,6 +719,7 @@ Panel {
               onModified: function(v) { root.setGlassy("shadow_opacity", v / 100) }
             }
             NumberField {
+              id: shadowTF
               anchors.verticalCenter: parent.verticalCenter
               width: 60
               from: 0; to: 100; stepSize: 5
@@ -641,10 +738,10 @@ Panel {
 
           Text {
             width: parent.width
-            text: "Every change writes ~/.config/glassy.bar/config.json and the bar applies it live — no save or restart needed. Percent fields are 0–100 (50 = 0.50). Color fields apply on Enter."
+            text: "Every change writes ~/.config/glassy.bar/config.json and the bar applies it live — no save or restart needed. Percent fields are 0–100 (50 = 0.50). Colors: click a swatch; theme default restores the theme."
             color: root.dim; wrapMode: Text.WordWrap
             font.family: Style.font.family; font.pixelSize: Style.font.caption
-          }
+          }          }
         }
 
         // ---- Autohide tab
@@ -654,6 +751,19 @@ Panel {
           visible: root.tab === "autohide"
           spacing: Style.space(8)
 
+            Loader {
+              id: autohidePane
+              width: parent.width
+              Component.onCompleted: root.autohidePaneRef = autohidePane
+              sourceComponent: root.revision > 0 ? autohidePaneComp : undefined
+            }
+        }
+
+        Component {
+          id: autohidePaneComp
+          Column {
+            width: autohidePane.width
+            spacing: Style.space(8)
           Row {
             spacing: Style.space(6)
             StateDot { state: root.autohideState; anchors.verticalCenter: parent.verticalCenter }
@@ -698,7 +808,7 @@ Panel {
             text: "The restart is detached; this panel closes with the shell and the bar returns in ~2 s."
             color: root.dim; wrapMode: Text.WordWrap
             font.family: Style.font.family; font.pixelSize: Style.font.caption
-          }
+          }          }
         }
 
         // ---- Layout tab
@@ -775,6 +885,29 @@ Panel {
         }
 
         Item { width: 1; height: Style.space(2) }
+      }
+    }
+  }
+
+  // Field internals don't follow external value/text changes, and programmatic
+  // writes would re-trigger onModified -> setGlassy. Instead, recreate the two
+  // field-bearing panes on every revision bump (end of each refresh): fresh
+  // bindings evaluate against the loaded config.
+  Connections {
+    target: root
+    function onRevisionChanged() {
+      if (root.revision <= 0) return
+      var gp = root.glassyPaneRef
+      if (gp && gp.sourceComponent) {
+        var g = gp.sourceComponent
+        gp.sourceComponent = undefined
+        gp.sourceComponent = g
+      }
+      var ap = root.autohidePaneRef
+      if (ap && ap.sourceComponent) {
+        var a = ap.sourceComponent
+        ap.sourceComponent = undefined
+        ap.sourceComponent = a
       }
     }
   }
