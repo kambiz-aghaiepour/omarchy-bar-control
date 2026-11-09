@@ -28,6 +28,11 @@ export OMARCHY_SHELL_JSON="$tmp/shell.json"
 "$here/scripts/barctl-layout" list | grep -q '|'
 export OMARCHY_BAR_CONTROL_STATE="$tmp/state"
 [[ -z $("$here/scripts/barctl-layout" take) ]]
+"$here/scripts/barctl-layout" color omarchy.clock '#89b4fa'
+"$here/scripts/barctl-layout" list | grep -q '|omarchy.clock|#89b4fa$'
+"$here/scripts/barctl-layout" color omarchy.clock -
+"$here/scripts/barctl-layout" list | grep -q '|omarchy.clock|$'
+"$here/scripts/barctl-layout" take >/dev/null
 "$here/scripts/barctl-layout" keep layout
 out=$("$here/scripts/barctl-layout" take)
 [[ $(sed -n 1p <<<"$out") == layout ]]

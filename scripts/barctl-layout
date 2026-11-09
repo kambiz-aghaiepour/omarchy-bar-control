@@ -20,7 +20,7 @@ sections() {
 list() {
   jq -r '.bar.layout | to_entries[] | .key as $s |
     (select(.value | type == "array") | .value | to_entries[]) |
-    "\($s)|\(.key)|\(.value.id // "")"' "$SHELL_JSON"
+    "\($s)|\(.key)|\(.value.id // "")|\(.value.color // "")"' "$SHELL_JSON"
 }
 
 locate() { # id -> "section index" or ""
@@ -69,8 +69,31 @@ case ${1:-} in
     omarchy bar move "$id" --section "$sec" --index "$idx" >/dev/null 2>&1 || { rm -f "$REOPEN"; exit 1; }
     list
     ;;
+  color)
+    id=${2:-}; hex=${3:-}
+    [[ -n $id ]] || exit 1
+    if [[ $hex == "-" ]]; then
+      expr='del(.color)'
+    else
+      [[ $hex =~ ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$ ]] || exit 1
+      expr='.color = $hex'
+    fi
+    # A color write on a custom module forces a full bar rebuild (inline
+    # settings push can't reach it), so leave the same reopen note as a move.
+    mkdir -p "$STATE" && printf '%s\n%s\n' layout "$(date +%s)" > "$REOPEN"
+    tmp=$(mktemp)
+    if jq --arg id "$id" --arg hex "$hex" "
+          .bar.layout |= with_entries(
+            if (.value | type) == \"array\" then
+              .value |= map(if (.id // \"\") == \$id then $expr else . end)
+            else . end)" "$SHELL_JSON" > "$tmp"; then
+      mv "$tmp" "$SHELL_JSON"
+    else
+      rm -f "$tmp"; exit 1
+    fi
+    ;;
   take)
     if [[ -f $REOPEN ]]; then cat "$REOPEN"; rm -f "$REOPEN"; fi
     ;;
-  *) echo "usage: barctl-layout list | move <id> <up|down|left|right> [tab] | keep [tab] | take" >&2; exit 1 ;;
+  *) echo "usage: barctl-layout list | move <id> <up|down|left|right> [tab] | color <id> <#hex|-> | keep [tab] | take" >&2; exit 1 ;;
 esac

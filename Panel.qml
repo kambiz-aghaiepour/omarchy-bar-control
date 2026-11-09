@@ -93,13 +93,7 @@ Panel {
 
   function loadLayout(after) {
     hostWidget.run(hostWidget.script("barctl-layout"), ["list"], null, function(code, out) {
-      var rows = []
-      var ls = out.split("\n")
-      for (var i = 0; i < ls.length; i++) {
-        var p = ls[i].split("|")
-        if (p.length === 3 && p[2] !== "") rows.push({ sec: p[0], idx: parseInt(p[1], 10), id: p[2] })
-      }
-      layoutRows = rows
+      layoutRows = parseLayoutRows(out)
       if (after) after()
     })
   }
@@ -132,16 +126,29 @@ Panel {
     })
   }
 
+  function parseLayoutRows(out) {
+    var rows = []
+    var ls = out.split("\n")
+    for (var i = 0; i < ls.length; i++) {
+      var p = ls[i].split("|")
+      if (p.length >= 3 && p[2] !== "")
+        rows.push({ sec: p[0], idx: parseInt(p[1], 10), id: p[2], color: p[3] || "" })
+    }
+    return rows
+  }
+
+  function setEntryColor(id, color) {
+    hostWidget.run(hostWidget.script("barctl-layout"), ["color", id, color === "" ? "-" : color], null, function(code, out) {
+      if (code !== 0) { hostWidget.actionNote = "color failed"; return }
+      hostWidget.actionNote = color === "" ? "color reset to glassy default" : "color " + color
+      loadLayout(null)
+    })
+  }
+
   function moveEntry(id, dir) {
     hostWidget.run(hostWidget.script("barctl-layout"), ["move", id, dir, root.tab], null, function(code, out) {
       if (code !== 0) { hostWidget.actionNote = "move failed"; loadLayout(null); return }
-      var rows = []
-      var ls = out.split("\n")
-      for (var i = 0; i < ls.length; i++) {
-        var p = ls[i].split("|")
-        if (p.length === 3 && p[2] !== "") rows.push({ sec: p[0], idx: parseInt(p[1], 10), id: p[2] })
-      }
-      layoutRows = rows
+      layoutRows = parseLayoutRows(out)
     })
   }
 
@@ -852,42 +859,89 @@ Panel {
 
               Repeater {
                 model: modelData.items
-                delegate: Row {
+                delegate: Column {
+                  id: entryRow
                   required property var modelData
                   width: parent.width
-                  spacing: Style.space(4)
-
-                  Item { width: 10; height: 1 }
-
-                  Text {
-                    width: 220
-                    text: modelData.id
-                    color: root.fg
-                    elide: Text.ElideMiddle
-                    font.pixelSize: 11
-                    font.family: Style.font.family
-                    anchors.verticalCenter: parent.verticalCenter
-                  }
+                  spacing: Style.space(2)
 
                   Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 2
-                    Mini {
-                      glyph: "▲"; enabled2: modelData.idx > 0
-                      action: function() { root.moveEntry(modelData.id, "up") }
+                    width: parent.width
+                    spacing: Style.space(4)
+
+                    Item { width: 10; height: 1 }
+
+                    Text {
+                      width: 220
+                      text: entryRow.modelData.id
+                      color: entryRow.modelData.color !== "" ? entryRow.modelData.color : root.fg
+                      elide: Text.ElideMiddle
+                      font.pixelSize: 11
+                      font.family: Style.font.family
+                      anchors.verticalCenter: parent.verticalCenter
                     }
-                    Mini {
-                      glyph: "▼"
-                      enabled2: modelData.idx < (root.sectionCount(modelData.sec) - 1)
-                      action: function() { root.moveEntry(modelData.id, "down") }
+
+                    Row {
+                      anchors.verticalCenter: parent.verticalCenter
+                      spacing: 2
+                      Mini {
+                        glyph: "▲"; enabled2: entryRow.modelData.idx > 0
+                        action: function() { root.moveEntry(entryRow.modelData.id, "up") }
+                      }
+                      Mini {
+                        glyph: "▼"
+                        enabled2: entryRow.modelData.idx < (root.sectionCount(entryRow.modelData.sec) - 1)
+                        action: function() { root.moveEntry(entryRow.modelData.id, "down") }
+                      }
+                      Mini {
+                        glyph: "◀"
+                        action: function() { root.moveEntry(entryRow.modelData.id, "left") }
+                      }
+                      Mini {
+                        glyph: "▶"
+                        action: function() { root.moveEntry(entryRow.modelData.id, "right") }
+                      }
                     }
-                    Mini {
-                      glyph: "◀"
-                      action: function() { root.moveEntry(modelData.id, "left") }
+
+                    Item { width: Style.space(6); height: 1 }
+                    MiniCheck {
+                      anchors.verticalCenter: parent.verticalCenter
+                      on: entryRow.modelData.color !== ""
+                      action: function() {
+                        if (entryRow.modelData.color !== "")
+                          root.setEntryColor(entryRow.modelData.id, "")
+                        else
+                          root.setEntryColor(entryRow.modelData.id, root.gv("foreground", "") || "#ffffff")
+                      }
                     }
-                    Mini {
-                      glyph: "▶"
-                      action: function() { root.moveEntry(modelData.id, "right") }
+                    Text {
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: "color"
+                      color: root.dim
+                      font.pixelSize: 10
+                      font.family: Style.font.family
+                    }
+                  }
+
+                  Flow {
+                    x: 10
+                    width: parent.width - 10
+                    spacing: 4
+                    visible: entryRow.modelData.color !== ""
+
+                    Repeater {
+                      model: root.palette
+                      Rectangle {
+                        width: 16; height: 16; radius: 3
+                        color: modelData
+                        border.width: modelData === entryRow.modelData.color ? 2 : 1
+                        border.color: modelData === entryRow.modelData.color ? root.accent : Qt.rgba(1, 1, 1, 0.25)
+                        MouseArea {
+                          anchors.fill: parent
+                          cursorShape: Qt.PointingHandCursor
+                          onClicked: root.setEntryColor(entryRow.modelData.id, modelData)
+                        }
+                      }
                     }
                   }
                 }
