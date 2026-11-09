@@ -829,64 +829,67 @@ Panel {
 
           Text {
             width: parent.width
-            text: "◀ previous section · ▶ next section · ▲▼ reorder within section. Changes apply live via omarchy bar move."
+            text: "Sections draw in this order. ▲▼ reorder within a section; ◀▶ move the widget to the adjacent section. Changes apply live via omarchy bar move.\n\nNote: the Glassy bar draws only left / center / right — widgets in centerBegin and centerEnd are hidden while Glassy is the bar."
             color: root.dim; wrapMode: Text.WordWrap
             font.family: Style.font.family; font.pixelSize: Style.font.caption
           }
 
           Repeater {
-            model: root.layoutRows
-            delegate: Row {
+            model: root.layoutGroups
+            delegate: Column {
               required property var modelData
               width: parent.width
-              spacing: Style.space(4)
-
-              Rectangle {
-                width: (modelData.idx === 0) ? 90 : 0
-                height: 1
-                color: "transparent"
-              }
+              spacing: Style.space(1)
 
               Text {
-                visible: modelData.idx === 0
-                width: 74
-                text: modelData.sec
+                width: parent.width
+                text: root.sectionLabel(modelData.sec)
                 color: root.accent
                 font.pixelSize: 10
                 font.bold: true
                 font.family: Style.font.family
-                anchors.verticalCenter: parent.verticalCenter
               }
 
-              Text {
-                width: 150
-                text: modelData.id
-                color: root.fg
-                elide: Text.ElideMiddle
-                font.pixelSize: 11
-                font.family: Style.font.family
-                anchors.verticalCenter: parent.verticalCenter
-              }
+              Repeater {
+                model: modelData.items
+                delegate: Row {
+                  required property var modelData
+                  width: parent.width
+                  spacing: Style.space(4)
 
-              Row {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 2
-                Mini {
-                  glyph: "▲"; enabled2: modelData.idx > 0
-                  action: function() { root.moveEntry(modelData.id, "up") }
-                }
-                Mini {
-                  glyph: "▼"
-                  enabled2: modelData.idx < (root.sectionCount(modelData.sec) - 1)
-                  action: function() { root.moveEntry(modelData.id, "down") }
-                }
-                Mini {
-                  glyph: "◀"
-                  action: function() { root.moveEntry(modelData.id, "left") }
-                }
-                Mini {
-                  glyph: "▶"
-                  action: function() { root.moveEntry(modelData.id, "right") }
+                  Item { width: 10; height: 1 }
+
+                  Text {
+                    width: 190
+                    text: modelData.id
+                    color: root.fg
+                    elide: Text.ElideMiddle
+                    font.pixelSize: 11
+                    font.family: Style.font.family
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+
+                  Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+                    Mini {
+                      glyph: "▲"; enabled2: modelData.idx > 0
+                      action: function() { root.moveEntry(modelData.id, "up") }
+                    }
+                    Mini {
+                      glyph: "▼"
+                      enabled2: modelData.idx < (root.sectionCount(modelData.sec) - 1)
+                      action: function() { root.moveEntry(modelData.id, "down") }
+                    }
+                    Mini {
+                      glyph: "◀"
+                      action: function() { root.moveEntry(modelData.id, "left") }
+                    }
+                    Mini {
+                      glyph: "▶"
+                      action: function() { root.moveEntry(modelData.id, "right") }
+                    }
+                  }
                 }
               }
             }
@@ -925,6 +928,41 @@ Panel {
     var n = 0
     for (var i = 0; i < layoutRows.length; i++) if (layoutRows[i].sec === sec) n++
     return n
+  }
+
+  // Bar sections in drawing order. centerBegin hangs off the center's left
+  // edge, centerEnd off its right; the plain names read as bar positions.
+  readonly property var sectionOrder: ["left", "centerBegin", "center", "centerEnd", "right"]
+  function sectionLabel(sec) {
+    if (sec === "centerBegin") return "centerBegin — left of center"
+    if (sec === "centerEnd") return "centerEnd — right of center"
+    if (sec === "left") return "left"
+    if (sec === "center") return "center"
+    if (sec === "right") return "right"
+    return sec
+  }
+
+  // layoutRows grouped by section, groups in bar order.
+  readonly property var layoutGroups: {
+    var groups = []
+    var seen = {}
+    for (var s = 0; s < sectionOrder.length; s++) {
+      var sec = sectionOrder[s]
+      var items = []
+      for (var i = 0; i < layoutRows.length; i++)
+        if (layoutRows[i].sec === sec) items.push(layoutRows[i])
+      if (items.length) { groups.push({ sec: sec, items: items }); seen[sec] = true }
+    }
+    for (var j = 0; j < layoutRows.length; j++) {
+      var other = layoutRows[j].sec
+      if (seen[other]) continue
+      var rest = []
+      for (var k = 0; k < layoutRows.length; k++)
+        if (layoutRows[k].sec === other) rest.push(layoutRows[k])
+      groups.push({ sec: other, items: rest })
+      seen[other] = true
+    }
+    return groups
   }
 
   onOpenedChanged: if (opened && hostWidget) { hostWidget.actionNote = ""; refresh() }
