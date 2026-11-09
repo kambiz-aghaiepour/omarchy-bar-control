@@ -9,7 +9,7 @@ omarchy plugin add https://github.com/kambiz-aghaiepour/omarchy-bar-control --en
 omarchy bar put io.github.kambiz.bar-control rightEnd   # or --after <id>
 ```
 
-Click the gear. Remote: `omarchy-shell io.github.kambiz.bar-control toggle|open|close|refresh`.
+Click the gear. Remote: `omarchy-shell io.github.kambiz.bar-control toggle|open|close|refresh|tab <name>|picker <#hex>|isopen`.
 
 ## Tabs
 

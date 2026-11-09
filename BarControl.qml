@@ -184,6 +184,10 @@ BarWidget {
     function tab(name: string): void {
       if (panelLoader.item && "tab" in panelLoader.item) panelLoader.item.tab = name
     }
+    function picker(hex: string): void {
+      if (panelLoader.item && "previewPicker" in panelLoader.item) panelLoader.item.previewPicker(hex)
+    }
+    function isopen(): string { return root.opened ? "open" : "closed" }
     function status(): string { return root.statusLine }
   }
 }

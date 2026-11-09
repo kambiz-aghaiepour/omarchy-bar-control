@@ -126,6 +126,49 @@ Panel {
     })
   }
 
+  // Custom-color picker overlay state. applyFn receives the chosen hex.
+  property bool pickerOpen: false
+  property string pickerValue: "#ffffff"
+  property var pickerApply: null
+
+  function openPicker(value, applyFn) {
+    var c = String(value || "")
+    root.pickerValue = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(c) ? c : "#ffffff"
+    root.pickerApply = applyFn || null
+    root.pickerOpen = true
+  }
+  function acceptPicker(hex) {
+    var fn = root.pickerApply
+    root.pickerOpen = false
+    root.pickerApply = null
+    if (fn) fn(hex)
+  }
+  function cancelPicker() {
+    root.pickerOpen = false
+    root.pickerApply = null
+  }
+  function previewPicker(hex) { root.openPanelForPreview(); root.openPicker(hex, null) }
+  function openPanelForPreview() { open() }
+
+  // Keyboard focus follows the picker: Esc/Enter land on the overlay while it
+  // is open, and the panel content regains focus when it closes.
+  onPickerOpenChanged: Qt.callLater(function() {
+    if (root.pickerOpen) {
+      if (pickerOverlay) pickerOverlay.forceActiveFocus()
+    } else if (keyCatcher) {
+      keyCatcher.forceActiveFocus()
+    }
+  })
+
+  function colorToHsv(hex) {
+    var c = Qt.color(hex)
+    var ok = c.valid !== undefined ? c.valid : true
+    return ok ? { h: c.hsvHue, s: c.hsvSaturation, v: c.hsvValue } : { h: 0, s: 0, v: 1 }
+  }
+  function hsvToHex(h, s, v) {
+    return Qt.hsva(Math.max(0, Math.min(1, h)), Math.max(0, Math.min(1, s)), Math.max(0, Math.min(1, v)), 1).toString()
+  }
+
   function parseLayoutRows(out) {
     var rows = []
     var ls = out.split("\n")
@@ -281,6 +324,60 @@ Panel {
     }
   }
 
+  // Palette swatches plus a custom-color button that opens the wheel picker.
+  component ColorPalette: Flow {
+    id: pal
+    property string current: ""
+    signal picked(string hex)
+    signal customRequested
+    width: parent ? parent.width : 0
+    spacing: 4
+
+    Repeater {
+      model: root.palette
+      Rectangle {
+        width: 16; height: 16; radius: 3
+        color: modelData
+        border.width: modelData === pal.current ? 2 : 1
+        border.color: modelData === pal.current ? root.accent : Qt.rgba(1, 1, 1, 0.25)
+        MouseArea {
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: pal.picked(modelData)
+        }
+      }
+    }
+
+    Rectangle {
+      width: 16; height: 16; radius: 3
+      gradient: Gradient {
+        GradientStop { position: 0.00; color: "#ff5555" }
+        GradientStop { position: 0.17; color: "#ffb86c" }
+        GradientStop { position: 0.33; color: "#f1fa8c" }
+        GradientStop { position: 0.50; color: "#50fa7b" }
+        GradientStop { position: 0.67; color: "#8be9fd" }
+        GradientStop { position: 0.83; color: "#bd93f9" }
+        GradientStop { position: 1.00; color: "#ff79c6" }
+      }
+      border.width: 1
+      border.color: Qt.rgba(1, 1, 1, 0.35)
+      Text {
+        anchors.centerIn: parent
+        text: "+"
+        color: "#11111b"
+        font.pixelSize: 11
+        font.bold: true
+        font.family: Style.font.family
+      }
+      MouseArea {
+        anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
+        onClicked: pal.customRequested()
+      }
+    }
+  }
+
   component MiniCheck: Rectangle {
     id: checkRoot
     property bool on: false
@@ -357,27 +454,249 @@ Panel {
       }
     }
 
-    Flow {
+    ColorPalette {
       width: parent.width
-      spacing: 4
-      Repeater {
-        model: root.palette
+      current: crow.cur
+      onPicked: function(hex) {
+        var n = {}
+        for (var k in root.lastCustom) n[k] = root.lastCustom[k]
+        n[crow.ckey] = hex
+        root.lastCustom = n
+        root.setGlassy(crow.ckey, hex)
+      }
+      onCustomRequested: root.openPicker(crow.cur, function(hex) {
+        var n = {}
+        for (var k in root.lastCustom) n[k] = root.lastCustom[k]
+        n[crow.ckey] = hex
+        root.lastCustom = n
+        root.setGlassy(crow.ckey, hex)
+      })
+    }
+  }
+
+  // Hue ring plus a saturation/value square; drag either to pick.
+  component ColorWheel: Item {
+    id: wheel
+    property real hue: 0
+    property real saturation: 1
+    property real value: 1
+    readonly property string hex: root.hsvToHex(hue, saturation, value)
+
+    implicitWidth: 190
+    implicitHeight: 190
+
+    readonly property real outerR: width / 2
+    readonly property real ringWidth: 16
+    readonly property real innerR: outerR - ringWidth
+    readonly property real padSide: Math.round(innerR * 1.32)
+    readonly property real padX: (width - padSide) / 2
+    readonly property real padY: (height - padSide) / 2
+
+    Canvas {
+      id: ringCanvas
+      anchors.fill: parent
+      onPaint: {
+        var ctx = getContext("2d")
+        ctx.reset()
+        var cx = wheel.width / 2
+        var cy = wheel.height / 2
+        var r = wheel.outerR - wheel.ringWidth / 2
+        ctx.lineWidth = wheel.ringWidth
+        for (var deg = 0; deg < 360; deg += 2) {
+          var a0 = (deg - 1.2) * Math.PI / 180
+          var a1 = (deg + 1.2) * Math.PI / 180
+          ctx.beginPath()
+          ctx.arc(cx, cy, r, a0, a1)
+          ctx.strokeStyle = Qt.hsva(deg / 360, 1, 1, 1)
+          ctx.stroke()
+        }
+      }
+      Component.onCompleted: requestPaint()
+      onWidthChanged: requestPaint()
+      onHeightChanged: requestPaint()
+    }
+
+    // Ring drag: angle picks the hue.
+    MouseArea {
+      anchors.fill: parent
+      onPressed: function(m) { wheel.updateHue(m.x, m.y) }
+      onPositionChanged: function(m) { wheel.updateHue(m.x, m.y) }
+
+      function updateHue(x, y) {
+        var dx = x - wheel.width / 2
+        var dy = y - wheel.height / 2
+        var d = Math.sqrt(dx * dx + dy * dy)
+        if (d < wheel.innerR - 2 || d > wheel.outerR + 2) return
+        var a = Math.atan2(dy, dx) * 180 / Math.PI
+        wheel.hue = ((a % 360) + 360) % 360 / 360
+      }
+    }
+
+    Rectangle {
+      x: wheel.padX
+      y: wheel.padY
+      width: wheel.padSide
+      height: wheel.padSide
+      radius: 4
+      color: Qt.hsva(wheel.hue, 1, 1, 1)
+
+      Rectangle {
+        anchors.fill: parent
+        radius: parent.radius
+        gradient: Gradient {
+          orientation: Gradient.Horizontal
+          GradientStop { position: 0; color: "#ffffff" }
+          GradientStop { position: 1; color: "transparent" }
+        }
+      }
+      Rectangle {
+        anchors.fill: parent
+        radius: parent.radius
+        gradient: Gradient {
+          orientation: Gradient.Vertical
+          GradientStop { position: 0; color: "transparent" }
+          GradientStop { position: 1; color: "#000000" }
+        }
+      }
+
+      Rectangle {
+        width: 12; height: 12; radius: 6
+        x: wheel.saturation * parent.width - width / 2
+        y: (1 - wheel.value) * parent.height - height / 2
+        color: "transparent"
+        border.width: 2
+        border.color: "#ffffff"
         Rectangle {
-          width: 16; height: 16; radius: 3
-          color: modelData
-          border.width: modelData === crow.cur ? 2 : 1
-          border.color: modelData === crow.cur ? root.accent : Qt.rgba(1, 1, 1, 0.25)
-          MouseArea {
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              var n = {}
-              for (var k in root.lastCustom) n[k] = root.lastCustom[k]
-              n[crow.ckey] = modelData
-              root.lastCustom = n
-              root.setGlassy(crow.ckey, modelData)
+          anchors.fill: parent
+          anchors.margins: 1
+          radius: 5
+          color: "transparent"
+          border.width: 1
+          border.color: Qt.rgba(0, 0, 0, 0.55)
+        }
+      }
+
+      MouseArea {
+        anchors.fill: parent
+        onPressed: function(m) { wheel.updateSV(m.x, m.y) }
+        onPositionChanged: function(m) { wheel.updateSV(m.x, m.y) }
+
+        function updateSV(x, y) {
+          wheel.saturation = Math.max(0, Math.min(1, x / wheel.padSide))
+          wheel.value = 1 - Math.max(0, Math.min(1, y / wheel.padSide))
+        }
+      }
+    }
+  }
+
+  // Modal custom-color picker drawn over the panel content.
+  component ColorPickerOverlay: FocusScope {
+    id: picker
+    property bool open: false
+    property string initial: "#ffffff"
+    signal accepted(string hex)
+    signal cancelled
+
+    visible: open
+    focus: open
+    onOpenChanged: if (open) reset()
+    onInitialChanged: if (open) reset()
+
+    function reset() {
+      var c = root.colorToHsv(picker.initial)
+      wheel.hue = c.h
+      wheel.saturation = c.s
+      wheel.value = c.v
+      hexField.text = wheel.hex
+    }
+
+    Keys.onEscapePressed: picker.cancelled()
+    Keys.onReturnPressed: picker.accepted(wheel.hex)
+
+    Rectangle {
+      anchors.fill: parent
+      color: Qt.rgba(0, 0, 0, 0.55)
+      MouseArea {
+        anchors.fill: parent
+        onClicked: picker.cancelled()
+      }
+    }
+
+    Rectangle {
+      id: pickerCard
+      anchors.centerIn: parent
+      width: 252
+      height: pickerColumn.implicitHeight + Style.space(20)
+      radius: Math.min(Style.cornerRadius, 18)
+      color: Qt.alpha(Commons.Color.background, 0.98)
+      border.width: 1
+      border.color: Qt.alpha(root.fg, 0.3)
+
+      MouseArea { anchors.fill: parent }
+
+      Column {
+        id: pickerColumn
+        anchors.top: parent.top
+        anchors.topMargin: Style.space(10)
+        anchors.horizontalCenter: parent.horizontalCenter
+        spacing: Style.space(8)
+
+        Text {
+          anchors.horizontalCenter: parent.horizontalCenter
+          text: "Custom color"
+          color: root.fg
+          font.family: Style.font.family
+          font.pixelSize: Style.font.caption
+          font.bold: true
+        }
+
+        ColorWheel { id: wheel }
+
+        Row {
+          anchors.horizontalCenter: parent.horizontalCenter
+          spacing: Style.space(8)
+
+          Rectangle {
+            width: 24; height: 24; radius: 4
+            anchors.verticalCenter: parent.verticalCenter
+            color: wheel.hex
+            border.width: 1
+            border.color: Qt.alpha(root.fg, 0.4)
+          }
+
+          TextField {
+            id: hexField
+            width: 96
+            anchors.verticalCenter: parent.verticalCenter
+            color: root.fg
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            onAccepted: {
+              var h = String(text || "").trim()
+              if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(h)) {
+                var c = root.colorToHsv(h)
+                wheel.hue = c.h
+                wheel.saturation = c.s
+                wheel.value = c.v
+                text = wheel.hex
+              } else {
+                text = wheel.hex
+              }
             }
+          }
+        }
+
+        Row {
+          anchors.horizontalCenter: parent.horizontalCenter
+          spacing: Style.space(6)
+
+          Act {
+            label: "Cancel"
+            action: function() { picker.cancelled() }
+          }
+          Act {
+            label: "Apply"
+            action: function() { picker.accepted(wheel.hex) }
           }
         }
       }
@@ -409,6 +728,7 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       implicitHeight: contentColumn.implicitHeight
+      blocked: root.pickerOpen
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -923,26 +1243,15 @@ Panel {
                     }
                   }
 
-                  Flow {
+                  ColorPalette {
                     x: 10
                     width: parent.width - 10
-                    spacing: 4
                     visible: entryRow.modelData.color !== ""
-
-                    Repeater {
-                      model: root.palette
-                      Rectangle {
-                        width: 16; height: 16; radius: 3
-                        color: modelData
-                        border.width: modelData === entryRow.modelData.color ? 2 : 1
-                        border.color: modelData === entryRow.modelData.color ? root.accent : Qt.rgba(1, 1, 1, 0.25)
-                        MouseArea {
-                          anchors.fill: parent
-                          cursorShape: Qt.PointingHandCursor
-                          onClicked: root.setEntryColor(entryRow.modelData.id, modelData)
-                        }
-                      }
-                    }
+                    current: entryRow.modelData.color
+                    onPicked: function(hex) { root.setEntryColor(entryRow.modelData.id, hex) }
+                    onCustomRequested: root.openPicker(entryRow.modelData.color, function(hex) {
+                      root.setEntryColor(entryRow.modelData.id, hex)
+                    })
                   }
                 }
               }
@@ -951,6 +1260,16 @@ Panel {
         }
 
         Item { width: 1; height: Style.space(2) }
+      }
+
+      ColorPickerOverlay {
+        id: pickerOverlay
+        anchors.fill: parent
+        z: 100
+        open: root.pickerOpen
+        initial: root.pickerValue
+        onAccepted: function(hex) { root.acceptPicker(hex) }
+        onCancelled: root.cancelPicker()
       }
     }
   }
@@ -1019,5 +1338,8 @@ Panel {
     return groups
   }
 
-  onOpenedChanged: if (opened && hostWidget) { hostWidget.actionNote = ""; refresh() }
+  onOpenedChanged: {
+    if (opened && hostWidget) { hostWidget.actionNote = ""; refresh() }
+    else if (!opened) cancelPicker()
+  }
 }
