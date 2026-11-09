@@ -593,20 +593,22 @@ Panel {
           }
 
           FieldRow {
-            label: "Margin edge / sides"
+            label: "Margin edge (px)"
             NumberField {
-              id: marginEdgeF
               anchors.verticalCenter: parent.verticalCenter
               fieldWidth: 72
-              from: 0; to: 100; stepSize: 1
+              from: 0; to: 64; stepSize: 1
               value: root.gn("margin_edge", 8)
               onModified: function(v) { root.setGlassy("margin_edge", v) }
             }
+          }
+
+          FieldRow {
+            label: "Margin sides (px)"
             NumberField {
-              id: marginSidesF
               anchors.verticalCenter: parent.verticalCenter
               fieldWidth: 72
-              from: 0; to: 100; stepSize: 1
+              from: 0; to: 64; stepSize: 1
               value: root.gn("margin_sides", 8)
               onModified: function(v) { root.setGlassy("margin_sides", v) }
             }
@@ -681,17 +683,19 @@ Panel {
           }
 
           FieldRow {
-            label: "Border width / opacity"
+            label: "Border width (px)"
             NumberField {
-              id: borderWF
               anchors.verticalCenter: parent.verticalCenter
-              fieldWidth: 64
+              fieldWidth: 72
               from: 0; to: 8; stepSize: 1
               value: root.gn("border_width", 1)
               onModified: function(v) { root.setGlassy("border_width", v) }
             }
+          }
+
+          FieldRow {
+            label: "Border opacity (%)"
             NumberField {
-              id: borderOF
               anchors.verticalCenter: parent.verticalCenter
               fieldWidth: 72
               from: 0; to: 100; stepSize: 5
@@ -701,27 +705,32 @@ Panel {
           }
 
           FieldRow {
-            label: "Shadow depth / opacity / tint"
+            label: "Shadow depth (px)"
             NumberField {
-              id: shadowDF
               anchors.verticalCenter: parent.verticalCenter
-              fieldWidth: 60
+              fieldWidth: 72
               from: 0; to: 64; stepSize: 1
               value: root.gn("shadow_depth", 10)
               onModified: function(v) { root.setGlassy("shadow_depth", v) }
             }
+          }
+
+          FieldRow {
+            label: "Shadow opacity (%)"
             NumberField {
-              id: shadowOF
               anchors.verticalCenter: parent.verticalCenter
-              fieldWidth: 64
+              fieldWidth: 72
               from: 0; to: 100; stepSize: 5
               value: Math.round(root.gn("shadow_opacity", 0.9) * 100)
               onModified: function(v) { root.setGlassy("shadow_opacity", v / 100) }
             }
+          }
+
+          FieldRow {
+            label: "Shadow tint (%)"
             NumberField {
-              id: shadowTF
               anchors.verticalCenter: parent.verticalCenter
-              fieldWidth: 64
+              fieldWidth: 72
               from: 0; to: 100; stepSize: 5
               value: Math.round(root.gn("shadow_tint", 0.22) * 100)
               onModified: function(v) { root.setGlassy("shadow_tint", v / 100) }
