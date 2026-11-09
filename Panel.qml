@@ -996,6 +996,17 @@ Panel {
 
           ColorRow { ckey: "foreground"; clabel: "Foreground (text/icons)" }
 
+          FieldRow {
+            label: "Foreground brightness (%)"
+            NumberField {
+              anchors.verticalCenter: parent.verticalCenter
+              fieldWidth: 72
+              from: 50; to: 150; stepSize: 5
+              value: Math.round(root.gn("foreground_brightness", 1) * 100)
+              onModified: function(v) { root.setGlassy("foreground_brightness", v / 100) }
+            }
+          }
+
           Header { label: "Effects" }
 
           Toggle {

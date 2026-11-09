@@ -3,8 +3,8 @@
 # config.json; the bar watches the file and applies changes live.
 # usage: barctl-glassy get | set <key> <value>
 # Flat keys: position width margin_edge margin_sides padding radius opacity
-#   background foreground blur split border_width border_opacity
-#   shadow_depth shadow_opacity shadow_tint
+#   background foreground foreground_brightness blur split border_width
+#   border_opacity shadow_depth shadow_opacity shadow_tint
 set -uo pipefail
 
 CFG=${OMARCHY_GLASSY_CONFIG:-$HOME/.config/glassy.bar/config.json}
@@ -13,12 +13,13 @@ defaults='{
   "position": "", "width": "full",
   "margin": {"edge": 8, "sides": 8}, "padding": 8,
   "radius": "pill", "opacity": 0,
-  "background": "", "foreground": "", "blur": false, "split": false,
+  "background": "", "foreground": "", "foregroundBrightness": 1,
+  "blur": false, "split": false,
   "border": {"width": 1, "opacity": 0.3},
   "shadow": {"depth": 10, "opacity": 0.9, "tint": 0.22}
 }'
 
-docs='position width margin_edge margin_sides padding radius opacity background foreground blur split border_width border_opacity shadow_depth shadow_opacity shadow_tint'
+docs='position width margin_edge margin_sides padding radius opacity background foreground foreground_brightness blur split border_width border_opacity shadow_depth shadow_opacity shadow_tint'
 
 case ${1:-} in
   get)
@@ -36,6 +37,7 @@ case ${1:-} in
         shadow_depth) v=$(jq -r '.shadow.depth // ""' <<<"$merged") ;;
         shadow_opacity) v=$(jq -r '.shadow.opacity // ""' <<<"$merged") ;;
         shadow_tint) v=$(jq -r '.shadow.tint // ""' <<<"$merged") ;;
+        foreground_brightness) v=$(jq -r '.foregroundBrightness // ""' <<<"$merged") ;;
         *) v=$(jq -r --arg k "$k" '.[$k] // ""' <<<"$merged") ;;
       esac
       echo "$k=$v"
@@ -62,6 +64,9 @@ case ${1:-} in
         else
           jq --arg k radius --argjson v "$v" '.radius = $v' "$CFG" > "$CFG.tmp"
         fi ;;
+      foreground_brightness)
+        [[ $v =~ ^[0-9]*\.?[0-9]+$ ]] || exit 1
+        jq --argjson v "$v" '.foregroundBrightness = $v' "$CFG" > "$CFG.tmp" ;;
       opacity|border_opacity|shadow_opacity|shadow_tint)
         [[ $v =~ ^[0-9]*\.?[0-9]+$ ]] || exit 1
         case $k in
