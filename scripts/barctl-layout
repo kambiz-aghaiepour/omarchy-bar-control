@@ -6,6 +6,11 @@
 set -uo pipefail
 
 SHELL_JSON=${OMARCHY_SHELL_JSON:-$HOME/.config/omarchy/shell.json}
+# Bar Control writes a one-shot "reopen the panel after the bar rebuilds"
+# state before every move: the layout change rebuilds bar widgets, which
+# destroys the panel; the next widget instance consumes this and reopens it.
+STATE=${OMARCHY_BAR_CONTROL_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/bar-control}
+REOPEN=$STATE/reopen
 CANON="left centerBegin center centerEnd right tray"
 
 sections() {
@@ -41,8 +46,11 @@ case ${1:-} in
   list)
     list
     ;;
+  keep)
+    mkdir -p "$STATE" && printf '%s\n%s\n' "${2:-layout}" "$(date +%s)" > "$REOPEN"
+    ;;
   move)
-    id=${2:-}; dir=${3:-}
+    id=${2:-}; dir=${3:-}; keep_tab=${4:-layout}
     loc=$(locate "$id") || { echo "not found: $id" >&2; exit 1; }
     sec=${loc% *}; idx=${loc#* }
     count=$(awk -F'|' -v s="$sec" '$1 == s' <<<"$(list)" | wc -l)
@@ -57,8 +65,12 @@ case ${1:-} in
         ;;
       *) exit 1 ;;
     esac
-    omarchy bar move "$id" --section "$sec" --index "$idx" >/dev/null 2>&1 || exit 1
+    mkdir -p "$STATE" && printf '%s\n%s\n' "$keep_tab" "$(date +%s)" > "$REOPEN"
+    omarchy bar move "$id" --section "$sec" --index "$idx" >/dev/null 2>&1 || { rm -f "$REOPEN"; exit 1; }
     list
     ;;
-  *) echo "usage: barctl-layout list | move <id> <up|down|left|right>" >&2; exit 1 ;;
+  take)
+    if [[ -f $REOPEN ]]; then cat "$REOPEN"; rm -f "$REOPEN"; fi
+    ;;
+  *) echo "usage: barctl-layout list | move <id> <up|down|left|right> [tab] | keep [tab] | take" >&2; exit 1 ;;
 esac

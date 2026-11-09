@@ -133,7 +133,7 @@ Panel {
   }
 
   function moveEntry(id, dir) {
-    hostWidget.run(hostWidget.script("barctl-layout"), ["move", id, dir], null, function(code, out) {
+    hostWidget.run(hostWidget.script("barctl-layout"), ["move", id, dir, root.tab], null, function(code, out) {
       if (code !== 0) { hostWidget.actionNote = "move failed"; loadLayout(null); return }
       var rows = []
       var ls = out.split("\n")
@@ -829,7 +829,7 @@ Panel {
 
           Text {
             width: parent.width
-            text: "Sections draw in this order. ▲▼ reorder within a section; ◀▶ move the widget to the adjacent section. Changes apply live via omarchy bar move.\n\nNote: the Glassy bar draws only left / center / right — widgets in centerBegin and centerEnd are hidden while Glassy is the bar."
+            text: "Sections draw in this order. ▲▼ reorder within a section; ◀▶ move the widget to the adjacent section. Changes apply live via omarchy bar move; the panel reopens itself after the bar rebuild.\n\nNote: the Glassy bar draws only left / center / right — widgets in centerBegin and centerEnd are hidden while Glassy is the bar."
             color: root.dim; wrapMode: Text.WordWrap
             font.family: Style.font.family; font.pixelSize: Style.font.caption
           }
@@ -860,7 +860,7 @@ Panel {
                   Item { width: 10; height: 1 }
 
                   Text {
-                    width: 190
+                    width: 220
                     text: modelData.id
                     color: root.fg
                     elide: Text.ElideMiddle

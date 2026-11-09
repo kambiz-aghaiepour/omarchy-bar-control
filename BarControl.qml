@@ -120,7 +120,43 @@ BarWidget {
 
   onBarChanged: injectPanel()
 
-  Component.onCompleted: panelRefresh()
+  // A bar rebuild (any layout move) destroys this widget along with the
+  // open panel. barctl-layout leaves a one-shot reopen note; the fresh
+  // instance consumes it and reopens the panel on the same tab, so
+  // rearranging widgets doesn't kick the user out of the panel.
+  property string reopenTab: ""
+  property var reopenStamp: 0
+
+  Process {
+    id: reopenProc
+    command: ["bash", "-c", 'exec "$@"', "bash", root.script("barctl-layout"), "take"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var s = String(line).trim()
+        if (s === "") return
+        if (root.reopenTab === "") root.reopenTab = s
+        else if (!root.reopenStamp) root.reopenStamp = parseFloat(s) || 0
+      }
+    }
+    onExited: function() {
+      var age = root.reopenStamp > 0 ? Date.now() / 1000 - root.reopenStamp : 999
+      if (root.reopenTab !== "" && age >= 0 && age < 20) reopenTimer.restart()
+      else root.reopenTab = ""
+    }
+  }
+
+  Timer {
+    id: reopenTimer
+    interval: 450
+    onTriggered: {
+      root.openPanel()
+      var panel = panelLoader.item
+      if (panel && "tab" in panel) panel.tab = root.reopenTab
+      root.reopenTab = ""
+    }
+  }
+
+  Component.onCompleted: { panelRefresh(); reopenProc.running = true }
 
   // ---- The widget.
 

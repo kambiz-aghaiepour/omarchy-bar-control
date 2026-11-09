@@ -26,6 +26,13 @@ export OMARCHY_SHELL_JSON="$tmp/shell.json"
 [[ $("$here/scripts/barctl-autohide" get) == 5000 ]]
 
 "$here/scripts/barctl-layout" list | grep -q '|'
+export OMARCHY_BAR_CONTROL_STATE="$tmp/state"
+[[ -z $("$here/scripts/barctl-layout" take) ]]
+"$here/scripts/barctl-layout" keep layout
+out=$("$here/scripts/barctl-layout" take)
+[[ $(sed -n 1p <<<"$out") == layout ]]
+[[ $(sed -n 2p <<<"$out") =~ ^[0-9]+$ ]]
+[[ -z $("$here/scripts/barctl-layout" take) ]] && echo "reopen state ok"
 "$here/scripts/barctl-plugins" status | grep -E '^(glassy|autohide) '
 
 echo ALL OK
