@@ -51,8 +51,15 @@ case ${1:-} in
     fi
     echo ok
     ;;
+  remove)
+    id=$(id_for "${2:-}") || exit 1
+    omarchy plugin remove "$id" --yes >/dev/null 2>&1 || exit 1
+    # Uninstalling the active bar plugin must restore the stock bar.
+    [[ $id == "$GLASSY_ID" ]] && omarchy plugin enable omarchy.bar >/dev/null 2>&1 || true
+    echo removed
+    ;;
   *)
-    echo "usage: barctl-plugins status|install|enable|disable [glassy|autohide]" >&2
+    echo "usage: barctl-plugins status|install|enable|disable|remove [glassy|autohide]" >&2
     exit 1
     ;;
 esac

@@ -92,7 +92,8 @@ Panel {
 
   function setGlassy(key, value) {
     hostWidget.run(hostWidget.script("barctl-glassy"), ["set", key, String(value)], null, function(code, out) {
-      if (code !== 0) hostWidget.actionNote = "glassy set failed: " + key
+      if (code !== 0) { hostWidget.actionNote = "glassy set failed: " + key; return }
+      hostWidget.actionNote = "glassy " + key + " = " + value + "  (applied live)"
       hostWidget.run(hostWidget.script("barctl-glassy"), ["get"], null, function(code2, out2) {
         var gg = {}
         var ls = out2.split("\n")
@@ -345,11 +346,17 @@ Panel {
             Row {
               spacing: Style.space(6)
               Act {
-                label: root.glassyState === "disabled" || root.glassyState === "absent" ? "Enable" : "Disable (stock bar returns)"
+                label: root.glassyState === "disabled" || root.glassyState === "absent" ? "Enable" : "Disable"
                 visible: root.glassyState !== "absent"
                 action: function() {
                   hostWidget.pluginAction(root.glassyState === "disabled" ? "enable" : "disable", "glassy")
                 }
+              }
+              Act {
+                label: "Remove"
+                visible: root.glassyState !== "absent"
+                danger: true
+                action: function() { hostWidget.pluginAction("remove", "glassy") }
               }
               Act {
                 label: "Install"
@@ -379,6 +386,12 @@ Panel {
                 }
               }
               Act {
+                label: "Remove"
+                visible: root.autohideState !== "absent"
+                danger: true
+                action: function() { hostWidget.pluginAction("remove", "autohide") }
+              }
+              Act {
                 label: "Install"
                 visible: root.autohideState === "absent"
                 action: function() { hostWidget.pluginAction("install", "autohide") }
@@ -388,7 +401,7 @@ Panel {
 
           Text {
             width: parent.width
-            text: "Installing runs omarchy plugin add with --enable; disabling Glassy hands the bar back to the stock omarchy.bar."
+            text: "Disable keeps the plugin installed (state is preserved; re-enable anytime). Remove uninstalls it — for Glassy that hands the bar back to stock omarchy.bar; re-install brings your settings back."
             color: root.dim
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -609,9 +622,17 @@ Panel {
             }
           }
 
+          Row {
+            spacing: Style.space(6)
+            Act {
+              label: "Reload from disk"
+              action: function() { root.refresh() }
+            }
+          }
+
           Text {
             width: parent.width
-            text: "Every change writes ~/.config/glassy.bar/config.json; the bar picks it up live."
+            text: "Every change writes ~/.config/glassy.bar/config.json and the bar applies it live — no save or restart needed. Percent fields are 0–100 (50 = 0.50). Color fields apply on Enter."
             color: root.dim; wrapMode: Text.WordWrap
             font.family: Style.font.family; font.pixelSize: Style.font.caption
           }
@@ -623,6 +644,24 @@ Panel {
           width: parent.width
           visible: root.tab === "autohide"
           spacing: Style.space(8)
+
+          Row {
+            spacing: Style.space(6)
+            StateDot { state: root.autohideState; anchors.verticalCenter: parent.verticalCenter }
+            Text {
+              text: "plugin: " + root.autohideState
+              color: root.dim; font.pixelSize: Style.font.caption; font.family: Style.font.family
+              anchors.verticalCenter: parent.verticalCenter
+            }
+            Act {
+              anchors.verticalCenter: parent.verticalCenter
+              label: root.autohideState === "disabled" ? "Enable" : "Disable"
+              visible: root.autohideState !== "absent"
+              action: function() {
+                hostWidget.pluginAction(root.autohideState === "disabled" ? "enable" : "disable", "autohide")
+              }
+            }
+          }
 
           FieldRow {
             label: "Hide delay (ms, 0–5000)"
