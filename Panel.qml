@@ -597,7 +597,7 @@ Panel {
             NumberField {
               id: marginEdgeF
               anchors.verticalCenter: parent.verticalCenter
-              width: 70
+              fieldWidth: 72
               from: 0; to: 100; stepSize: 1
               value: root.gn("margin_edge", 8)
               onModified: function(v) { root.setGlassy("margin_edge", v) }
@@ -605,7 +605,7 @@ Panel {
             NumberField {
               id: marginSidesF
               anchors.verticalCenter: parent.verticalCenter
-              width: 70
+              fieldWidth: 72
               from: 0; to: 100; stepSize: 1
               value: root.gn("margin_sides", 8)
               onModified: function(v) { root.setGlassy("margin_sides", v) }
@@ -617,7 +617,7 @@ Panel {
             NumberField {
               id: paddingF
               anchors.verticalCenter: parent.verticalCenter
-              width: 70
+              fieldWidth: 72
               from: 0; to: 64; stepSize: 1
               value: root.gn("padding", 8)
               onModified: function(v) { root.setGlassy("padding", v) }
@@ -654,7 +654,7 @@ Panel {
             NumberField {
               id: opacityF
               anchors.verticalCenter: parent.verticalCenter
-              width: 70
+              fieldWidth: 72
               from: 0; to: 100; stepSize: 5
               value: Math.round(root.gn("opacity", 0) * 100)
               onModified: function(v) { root.setGlassy("opacity", v / 100) }
@@ -685,7 +685,7 @@ Panel {
             NumberField {
               id: borderWF
               anchors.verticalCenter: parent.verticalCenter
-              width: 60
+              fieldWidth: 64
               from: 0; to: 8; stepSize: 1
               value: root.gn("border_width", 1)
               onModified: function(v) { root.setGlassy("border_width", v) }
@@ -693,7 +693,7 @@ Panel {
             NumberField {
               id: borderOF
               anchors.verticalCenter: parent.verticalCenter
-              width: 70
+              fieldWidth: 72
               from: 0; to: 100; stepSize: 5
               value: Math.round(root.gn("border_opacity", 0.3) * 100)
               onModified: function(v) { root.setGlassy("border_opacity", v / 100) }
@@ -705,7 +705,7 @@ Panel {
             NumberField {
               id: shadowDF
               anchors.verticalCenter: parent.verticalCenter
-              width: 55
+              fieldWidth: 60
               from: 0; to: 64; stepSize: 1
               value: root.gn("shadow_depth", 10)
               onModified: function(v) { root.setGlassy("shadow_depth", v) }
@@ -713,7 +713,7 @@ Panel {
             NumberField {
               id: shadowOF
               anchors.verticalCenter: parent.verticalCenter
-              width: 60
+              fieldWidth: 64
               from: 0; to: 100; stepSize: 5
               value: Math.round(root.gn("shadow_opacity", 0.9) * 100)
               onModified: function(v) { root.setGlassy("shadow_opacity", v / 100) }
@@ -721,7 +721,7 @@ Panel {
             NumberField {
               id: shadowTF
               anchors.verticalCenter: parent.verticalCenter
-              width: 60
+              fieldWidth: 64
               from: 0; to: 100; stepSize: 5
               value: Math.round(root.gn("shadow_tint", 0.22) * 100)
               onModified: function(v) { root.setGlassy("shadow_tint", v / 100) }
@@ -787,7 +787,7 @@ Panel {
             label: "Hide delay (ms, 0–5000)"
             NumberField {
               anchors.verticalCenter: parent.verticalCenter
-              width: 90
+              fieldWidth: 84
               from: 0; to: 5000; stepSize: 50
               value: root.autohideMs
               onModified: function(v) { root.setAutohide(v) }
