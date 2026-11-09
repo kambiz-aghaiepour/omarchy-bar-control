@@ -152,12 +152,12 @@ Panel {
 
   // Keyboard focus follows the picker: Esc/Enter land on the overlay while it
   // is open, and the panel content regains focus when it closes.
+  // The overlay takes focus itself via focus: open (ids inside the lazy panel
+  // content are not visible at root scope). On close, hand focus back to the
+  // panel content so arrows/typing keep working.
   onPickerOpenChanged: Qt.callLater(function() {
-    if (root.pickerOpen) {
-      if (pickerOverlay) pickerOverlay.forceActiveFocus()
-    } else if (keyCatcher) {
-      keyCatcher.forceActiveFocus()
-    }
+    if (!root.pickerOpen && panel && panel.loadedContent)
+      panel.loadedContent.forceActiveFocus()
   })
 
   function colorToHsv(hex) {
