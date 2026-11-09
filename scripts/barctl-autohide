@@ -1,0 +1,31 @@
+#!/bin/bash
+# Bar Autohide delay for Bar Control: hideDelayMs on the plugin's entry in
+# shell.json. The shell must be restarted for changes to apply.
+# usage: barctl-autohide get | set <milliseconds>
+set -uo pipefail
+
+SHELL_JSON=${OMARCHY_SHELL_JSON:-$HOME/.config/omarchy/shell.json}
+ID=ericvrp.bar-autohide
+
+[[ -f $SHELL_JSON ]] || { echo "no shell.json"; exit 1; }
+
+case ${1:-} in
+  get)
+    jq -r --arg id "$ID" '
+      (.plugins // []) | map(select(.id == $id)) |
+      (if length > 0 then (.[0].hideDelayMs // 200) else 200 end)' "$SHELL_JSON" \
+      | head -1
+    ;;
+  set)
+    v=${2:-}
+    [[ $v =~ ^[0-9]+$ ]] || exit 1
+    (( v > 5000 )) && v=5000
+    tmp=$(mktemp)
+    jq --arg id "$ID" --argjson v "$v" '
+      (if any((.plugins // [])[]; .id == $id) then . else .plugins = ((.plugins // []) + [{"id": $id}]) end)
+      | .plugins = [ .plugins[] | if .id == $id then (.hideDelayMs = $v) else . end ]' \
+      "$SHELL_JSON" > "$tmp" && jq -e . "$tmp" >/dev/null && mv "$tmp" "$SHELL_JSON"
+    echo ok
+    ;;
+  *) echo "usage: barctl-autohide get|set <ms>" >&2; exit 1 ;;
+esac

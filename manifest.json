@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.kambiz.bar-control",
+  "name": "Bar Control",
+  "version": "0.1.0",
+  "author": "kambiz",
+  "license": "MIT",
+  "description": "Central control panel for the bar stack: enable/install the Glassy Bar and Bar Autohide plugins, edit every glassy.bar config key (geometry, transparency, colors, border, shadow) with live preview, the autohide delay, and reorder any bar entry via the stock move plumbing.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarControl.qml"
+  },
+  "barWidget": {
+    "displayName": "Bar Control",
+    "description": "Bar plugins, glassy/autohide settings and layout ordering; click opens the control panel",
+    "category": "Compositor",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {},
+    "schema": []
+  }
+}

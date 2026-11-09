@@ -1,0 +1,64 @@
+#!/bin/bash
+# Bar layout inspection and reordering for Bar Control, on top of the stock
+# `omarchy bar move` plumbing (persist + live nudge).
+# usage: barctl-layout list | move <widget-id> <up|down|left|right>
+# list prints "section|index|id" per entry, sections in bar order.
+set -uo pipefail
+
+SHELL_JSON=${OMARCHY_SHELL_JSON:-$HOME/.config/omarchy/shell.json}
+CANON="left centerBegin center centerEnd right tray"
+
+sections() {
+  jq -r '.bar.layout | to_entries | map(select(.value | type == "array")) | map(.key) | join(" ")' "$SHELL_JSON"
+}
+
+list() {
+  jq -r '.bar.layout | to_entries[] | .key as $s |
+    (select(.value | type == "array") | .value | to_entries[]) |
+    "\($s)|\(.key)|\(.value.id // "")"' "$SHELL_JSON"
+}
+
+locate() { # id -> "section index" or ""
+  list | awk -F'|' -v id="$1" '$3 == id { print $1, $2; found=1 } END { if (!found) exit 1 }'
+}
+
+neighbor_section() { # current direction -> adjacent existing section
+  local cur=$1 dir=$2 all s last= prev= next=
+  all=$(sections)
+  for s in $CANON; do
+    case $all in *$s*) ;; *) continue ;; esac
+    if [[ $s == "$cur" ]]; then
+      prev=$last
+    else
+      if [[ -n $cur && $last == "$cur" ]]; then next=$s; break; fi
+    fi
+    last=$s
+  done
+  [[ $dir == left ]] && echo "${prev:-}" || echo "${next:-}"
+}
+
+case ${1:-} in
+  list)
+    list
+    ;;
+  move)
+    id=${2:-}; dir=${3:-}
+    loc=$(locate "$id") || { echo "not found: $id" >&2; exit 1; }
+    sec=${loc% *}; idx=${loc#* }
+    count=$(awk -F'|' -v s="$sec" '$1 == s' <<<"$(list)" | wc -l)
+    case $dir in
+      up) (( idx > 0 )) || exit 0; (( idx-- )) ;;
+      down) (( idx < count - 1 )) || exit 0; (( idx++ )) ;;
+      left|right)
+        tgt=$(neighbor_section "$sec" "$dir")
+        [[ -n $tgt ]] || exit 0
+        sec=$tgt
+        idx=$(awk -F'|' -v s="$sec" '$1 == s' <<<"$(list)" | wc -l)
+        ;;
+      *) exit 1 ;;
+    esac
+    omarchy bar move "$id" --section "$sec" --index "$idx" >/dev/null 2>&1 || exit 1
+    list
+    ;;
+  *) echo "usage: barctl-layout list | move <id> <up|down|left|right>" >&2; exit 1 ;;
+esac

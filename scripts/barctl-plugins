@@ -1,0 +1,58 @@
+#!/bin/bash
+# Plugin state and lifecycle for Bar Control.
+# usage: barctl-plugins status | install <glassy|autohide> | enable <...> | disable <...>
+# status prints one line per plugin: "glassy <active|enabled|disabled|absent>".
+set -uo pipefail
+
+GLASSY_ID=glassy.bar
+AUTO_ID=ericvrp.bar-autohide
+GLASSY_URL=https://github.com/imdevan/glassy.bar
+AUTO_URL=https://github.com/ericvrp/omarchy-bar-autohide
+
+id_for() {
+  case $1 in
+    glassy) echo "$GLASSY_ID" ;;
+    autohide) echo "$AUTO_ID" ;;
+    *) return 1 ;;
+  esac
+}
+
+state_of() { # id -> active|enabled|disabled|absent
+  local id=$1
+  omarchy plugin list --json 2>/dev/null | jq -r --arg id "$id" '
+    if any(.[]; .id == $id) then
+      .[] | select(.id == $id) |
+      if .enabled == true then (if .active == true then "active" else "enabled" end)
+      else "disabled" end
+    else "absent" end' 2>/dev/null || echo absent
+}
+
+case ${1:-} in
+  status)
+    echo "glassy $(state_of "$GLASSY_ID")"
+    echo "autohide $(state_of "$AUTO_ID")"
+    ;;
+  install)
+    case ${2:-} in
+      glassy) omarchy plugin add "$GLASSY_URL" --enable --yes >/dev/null 2>&1 && omarchy plugin disable omarchy.bar >/dev/null 2>&1 || exit 1 ;;
+      autohide) omarchy plugin add "$AUTO_URL" --enable --yes >/dev/null 2>&1 || exit 1 ;;
+      *) exit 1 ;;
+    esac
+    echo installed
+    ;;
+  enable|disable)
+    id=$(id_for "${2:-}") || exit 1
+    omarchy plugin "$1" "$id" >/dev/null 2>&1 || exit 1
+    # Keep exactly one bar alive: stock bar returns when glassy is disabled,
+    # and is retired when glassy is (re-)enabled.
+    if [[ $id == "$GLASSY_ID" ]]; then
+      if [[ $1 == disable ]]; then omarchy plugin enable omarchy.bar >/dev/null 2>&1 || true
+      else omarchy plugin disable omarchy.bar >/dev/null 2>&1 || true; fi
+    fi
+    echo ok
+    ;;
+  *)
+    echo "usage: barctl-plugins status|install|enable|disable [glassy|autohide]" >&2
+    exit 1
+    ;;
+esac

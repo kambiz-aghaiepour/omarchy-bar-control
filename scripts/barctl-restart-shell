@@ -1,0 +1,18 @@
+#!/bin/bash
+# Detached Omarchy shell restart (used after shell.json-level changes such as
+# the autohide delay). Runs via the user systemd instance so it survives the
+# panel process that triggered it.
+set -uo pipefail
+
+systemctl --user import-environment \
+  WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE \
+  HYPRLAND_INSTANCE_SIGNATURE XDG_SESSION_DESKTOP 2>/dev/null || true
+
+unit="omarchy-bar-control-restart-$$"
+systemd-run --user --unit="$unit" --collect bash -c '
+  sleep 1
+  pkill -f "quickshell -n" 2>/dev/null || true
+  sleep 2
+  setsid quickshell -n -p /usr/share/omarchy/shell >/dev/null 2>&1 &
+' >/dev/null 2>&1
+echo triggered

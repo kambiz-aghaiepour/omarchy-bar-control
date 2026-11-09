@@ -1,0 +1,91 @@
+#!/bin/bash
+# Glassy bar config access for Bar Control. Mirrors every key of glassy.bar's
+# config.json; the bar watches the file and applies changes live.
+# usage: barctl-glassy get | set <key> <value>
+# Flat keys: position width margin_edge margin_sides padding radius opacity
+#   background foreground blur split border_width border_opacity
+#   shadow_depth shadow_opacity shadow_tint
+set -uo pipefail
+
+CFG=${OMARCHY_GLASSY_CONFIG:-$HOME/.config/glassy.bar/config.json}
+
+defaults='{
+  "position": "", "width": "full",
+  "margin": {"edge": 8, "sides": 8}, "padding": 8,
+  "radius": "pill", "opacity": 0,
+  "background": "", "foreground": "", "blur": false, "split": false,
+  "border": {"width": 1, "opacity": 0.3},
+  "shadow": {"depth": 10, "opacity": 0.9, "tint": 0.22}
+}'
+
+docs='position width margin_edge margin_sides padding radius opacity background foreground blur split border_width border_opacity shadow_depth shadow_opacity shadow_tint'
+
+case ${1:-} in
+  get)
+    if [[ -f $CFG ]]; then
+      merged=$(jq -c --argjson d "$defaults" '$d * . // $d' "$CFG" 2>/dev/null) || merged=$defaults
+    else
+      merged=$defaults
+    fi
+    for k in $docs; do
+      case $k in
+        margin_edge) v=$(jq -r '.margin.edge // ""' <<<"$merged") ;;
+        margin_sides) v=$(jq -r '.margin.sides // ""' <<<"$merged") ;;
+        border_width) v=$(jq -r '.border.width // ""' <<<"$merged") ;;
+        border_opacity) v=$(jq -r '.border.opacity // ""' <<<"$merged") ;;
+        shadow_depth) v=$(jq -r '.shadow.depth // ""' <<<"$merged") ;;
+        shadow_opacity) v=$(jq -r '.shadow.opacity // ""' <<<"$merged") ;;
+        shadow_tint) v=$(jq -r '.shadow.tint // ""' <<<"$merged") ;;
+        *) v=$(jq -r --arg k "$k" '.[$k] // ""' <<<"$merged") ;;
+      esac
+      echo "$k=$v"
+    done
+    ;;
+  set)
+    k=${2:-}; v=${3:-}
+    [[ -f $CFG ]] || echo "$defaults" > "$CFG"
+    case $k in
+      position|background|foreground)
+        [[ $v == '""' ]] && v=""
+        jq --arg k "$k" --arg v "$v" '.[$k] = $v' "$CFG" > "$CFG.tmp" ;;
+      width)
+        [[ $v =~ ^(full|[0-9]+|[0-9]+%)$ ]] || exit 1
+        if [[ $v == full || $v == *% ]]; then
+          jq --arg k width --arg v "$v" '.width = $v' "$CFG" > "$CFG.tmp"
+        else
+          jq --arg k width --argjson v "$v" '.width = $v' "$CFG" > "$CFG.tmp"
+        fi ;;
+      radius)
+        [[ $v == pill || $v =~ ^[0-9]+$ ]] || exit 1
+        if [[ $v == pill ]]; then
+          jq --arg k radius --arg v pill '.radius = $v' "$CFG" > "$CFG.tmp"
+        else
+          jq --arg k radius --argjson v "$v" '.radius = $v' "$CFG" > "$CFG.tmp"
+        fi ;;
+      opacity|border_opacity|shadow_opacity|shadow_tint)
+        [[ $v =~ ^[0-9]*\.?[0-9]+$ ]] || exit 1
+        case $k in
+          opacity) jq --argjson v "$v" '.opacity = $v' "$CFG" > "$CFG.tmp" ;;
+          border_opacity) jq --argjson v "$v" '.border.opacity = $v' "$CFG" > "$CFG.tmp" ;;
+          shadow_opacity) jq --argjson v "$v" '.shadow.opacity = $v' "$CFG" > "$CFG.tmp" ;;
+          shadow_tint) jq --argjson v "$v" '.shadow.tint = $v' "$CFG" > "$CFG.tmp" ;;
+        esac ;;
+      margin_edge|margin_sides|padding|border_width|shadow_depth)
+        [[ $v =~ ^[0-9]+$ ]] || exit 1
+        case $k in
+          margin_edge) jq '.margin.edge = $v' --argjson v "$v" "$CFG" > "$CFG.tmp" ;;
+          margin_sides) jq '.margin.sides = $v' --argjson v "$v" "$CFG" > "$CFG.tmp" ;;
+          padding) jq '.padding = $v' --argjson v "$v" "$CFG" > "$CFG.tmp" ;;
+          border_width) jq '.border.width = $v' --argjson v "$v" "$CFG" > "$CFG.tmp" ;;
+          shadow_depth) jq '.shadow.depth = $v' --argjson v "$v" "$CFG" > "$CFG.tmp" ;;
+        esac ;;
+      blur|split)
+        [[ $v == true || $v == false ]] || exit 1
+        jq --argjson v "$v" ".${k} = \$v" "$CFG" > "$CFG.tmp" ;;
+      *) echo "unknown key $k" >&2; exit 1 ;;
+    esac
+    [[ -s $CFG.tmp ]] && jq -e . "$CFG.tmp" >/dev/null && mv "$CFG.tmp" "$CFG"
+    echo ok
+    ;;
+  *) echo "usage: barctl-glassy get | set <key> <value>" >&2; exit 1 ;;
+esac
